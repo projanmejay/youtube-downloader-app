@@ -33,6 +33,12 @@ if url:
                     # Add a User-Agent header to mimic a browser and avoid 403 errors
                     'http_headers': {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36'
+                    },
+                    # Add this line to specify a different player client and avoid 403 errors
+                    'extractor_args': {
+                        'youtube': {
+                            'player_client': ['web_embedded', 'web', 'android', 'ios']
+                        }
                     }
                 }
 
