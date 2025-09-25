@@ -2,55 +2,41 @@ import streamlit as st
 import yt_dlp
 import os
 
-def download_and_merge_video_audio(url, resolution="1080", output_path="."):
-    # yt-dlp format string based on chosen resolution
-    format_str = f"bestvideo[height<={resolution}]+bestaudio/best[height<={resolution}]"
+st.set_page_config(page_title="YouTube Downloader", page_icon="📥")
 
-    options = {
-        'format': format_str,
-        'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
-        'noplaylist': True,
-        'quiet': False,
-        'merge_output_format': 'mp4'
-        # no ffmpeg_location needed if ffmpeg is in PATH
-    }
+st.title("📥 YouTube Video Downloader (1080p Max)")
 
-    try:
-        with yt_dlp.YoutubeDL(options) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-            # normalize extension to mp4
-            filename = filename.replace(".webm", ".mp4").replace(".mkv", ".mp4")
-        return filename
-    except Exception as e:
-        st.error(f"❌ Error: {e}")
-        return None
-
-
-# ---------------- Streamlit UI ----------------
-st.title("📥 YouTube Video Downloader")
-st.write("Download and merge YouTube videos with audio using yt-dlp + ffmpeg")
-
+# Input URL
 url = st.text_input("Enter YouTube video URL:")
 
-resolution = st.selectbox(
-    "Choose maximum resolution:",
-    ["360", "480", "720", "1080"],
-    index=3
-)
+# Output folder inside app
+output_path = "downloads"
+os.makedirs(output_path, exist_ok=True)
 
-if st.button("Download"):
-    if url:
-        st.info("Downloading... please wait ⏳")
-        filepath = download_and_merge_video_audio(url, resolution)
-        if filepath and os.path.exists(filepath):
-            st.success("✅ Download complete!")
-            with open(filepath, "rb") as f:
-                st.download_button(
-                    label="⬇️ Download File",
-                    data=f,
-                    file_name=os.path.basename(filepath),
-                    mime="video/mp4"
-                )
+if st.button("Download Video"):
+    if not url:
+        st.warning("Please enter a YouTube video URL.")
     else:
-        st.warning("⚠️ Please enter a valid URL.")
+        st.info("Downloading and merging video...")
+        options = {
+            'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
+            'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
+            'noplaylist': True,
+            'quiet': True,
+            'merge_output_format': 'mp4',
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(options) as ydl:
+                info_dict = ydl.extract_info(url, download=True)
+                filename = ydl.prepare_filename(info_dict)
+            st.success("✅ Download and merge complete.")
+            # Provide download link
+            st.download_button(
+                label="Download Video",
+                data=open(filename, "rb"),
+                file_name=os.path.basename(filename),
+                mime="video/mp4"
+            )
+        except Exception as e:
+            st.error(f"❌ Error: {e}")
