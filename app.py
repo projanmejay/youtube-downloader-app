@@ -32,17 +32,16 @@ if url:
                 output_path = "downloads"
                 os.makedirs(output_path, exist_ok=True)
 
-                # yt-dlp options for selected quality
+                # yt-dlp options for selected quality (merging removed)
                 options = {
-                    'format': f"bestvideo[height={selected_quality.replace('p','')}]+bestaudio/best[height={selected_quality.replace('p','')}]",
+                    'format': f"best[height={selected_quality.replace('p','')}]",
                     'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
                     'noplaylist': True,
-                    'merge_output_format': 'mp4',
                 }
 
                 with yt_dlp.YoutubeDL(options) as ydl:
                     info = ydl.extract_info(url, download=True)
-                    filename = ydl.prepare_filename(info).replace(".webm", ".mp4")
+                    filename = ydl.prepare_filename(info)
 
                 st.success("✅ Download complete!")
 
