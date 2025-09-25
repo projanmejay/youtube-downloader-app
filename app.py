@@ -5,14 +5,14 @@ import os
 st.set_page_config(page_title="YouTube Downloader", page_icon="📥")
 st.title("📥 YouTube Video Downloader (1080p Max)")
 
-# Create downloads folder
+# Output folder
 output_path = "downloads"
 os.makedirs(output_path, exist_ok=True)
 
-# Input YouTube URL
+# YouTube URL input
 url = st.text_input("Enter YouTube video URL:")
 
-# Optional: upload cookies.txt for age-restricted/region-restricted videos
+# Optional cookies for age-restricted videos
 cookie_file = st.file_uploader("Optional: Upload cookies.txt (for age-restricted videos)", type=["txt"])
 
 if st.button("Download Video"):
@@ -21,7 +21,6 @@ if st.button("Download Video"):
     else:
         st.info("Downloading and merging video... This may take a few moments.")
         
-        # Setup yt_dlp options
         options = {
             'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
             'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
@@ -33,12 +32,12 @@ if st.button("Download Video"):
                 'User-Agent': (
                     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
                     'AppleWebKit/537.36 (KHTML, like Gecko) '
-                    'Chrome/115.0.0.0 Safari/537.36'
+                    'Chrome/120.0.0.0 Safari/537.36'
                 )
-            }
+            },
         }
 
-        # If user uploaded cookies.txt, save it temporarily and pass to yt_dlp
+        # Save cookies if uploaded
         if cookie_file:
             cookie_path = os.path.join(output_path, "cookies.txt")
             with open(cookie_path, "wb") as f:
@@ -52,7 +51,7 @@ if st.button("Download Video"):
             
             st.success("✅ Download and merge complete!")
 
-            # Provide download button for the user
+            # Download button
             st.download_button(
                 label="Download Video",
                 data=open(filename, "rb"),
@@ -60,5 +59,8 @@ if st.button("Download Video"):
                 mime="video/mp4"
             )
 
+        except yt_dlp.utils.DownloadError as e:
+            st.error(f"❌ Download error (403 Forbidden likely): {e}\n\n"
+                     "Try uploading cookies.txt from your logged-in YouTube account.")
         except Exception as e:
             st.error(f"❌ Error: {e}")
