@@ -2,54 +2,75 @@ import streamlit as st
 import yt_dlp
 import os
 
-st.set_page_config(page_title="YouTube Downloader", page_icon="📥")
-st.title("📥 YouTube Video Downloader (1080p Max, No FFmpeg Required)")
+st.title("📥 YouTube Video Downloader (HD/4K)")
+st.write("Enter a YouTube link to download the video in the highest available quality.")
 
-# Folder for downloads
-output_path = "downloads"
-os.makedirs(output_path, exist_ok=True)
+# --- Functions ---
+def get_video_qualities(url):
+    """Fetches available video-only resolutions."""
+    ydl_opts = {'noplaylist': True}
+    qualities = set()
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        formats = info.get('formats', [])
+        for f in formats:
+            # Filter for video-only formats that have a height specified
+            if f.get('vcodec') != 'none' and f.get('acodec') == 'none' and f.get('height'):
+                qualities.add(f"{f['height']}p")
+    
+    # Return a sorted list of unique qualities, highest first
+    return sorted(list(qualities), key=lambda q: int(q.replace('p', '')), reverse=True)
 
-# Input URL
-url = st.text_input("Enter YouTube video URL:")
+# --- Streamlit App UI ---
+url = st.text_input("🎬 Enter YouTube URL:")
 
-# Button to start download
-if st.button("Download Video"):
-    if not url:
-        st.warning("Please enter a YouTube video URL.")
-    else:
-        st.info("Downloading video... This may take a few moments.")
+if url:
+    try:
+        with st.spinner("Fetching available qualities..."):
+            qualities = get_video_qualities(url)
 
-        # yt_dlp options
-        options = {
-            'format': 'best[height<=1080]+bestaudio/best',  # progressive download when possible
-            'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
-            'noplaylist': True,
-            'quiet': True,
-            'nocheckcertificate': True,
-            'merge_output_format': 'mp4',  # only used if merging needed
-            'http_headers': {
-                'User-Agent': (
-                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                    'AppleWebKit/537.36 (KHTML, like Gecko) '
-                    'Chrome/120.0.0.0 Safari/537.36'
-                )
-            }
-        }
+        if not qualities:
+            st.warning("⚠️ No video-only formats found. Using best available single file.")
+            qualities = ["best"] 
+        
+        st.info("ℹ️ Higher qualities (1080p+) have no sound and will be merged with the best audio.")
+        selected_quality = st.selectbox("🎯 Select video quality:", qualities)
 
-        try:
-            with yt_dlp.YoutubeDL(options) as ydl:
-                info_dict = ydl.extract_info(url, download=True)
-                filename = ydl.prepare_filename(info_dict)
+        if st.button("Download Video"):
+            with st.spinner("Downloading and merging... this may take a moment."):
+                output_path = "downloads"
+                os.makedirs(output_path, exist_ok=True)
+                
+                height = selected_quality.replace('p', '') if selected_quality != 'best' else 'best'
+                
+                format_string = f'bestvideo[height={height}]+bestaudio/best' if height != 'best' else 'best'
 
-            st.success("✅ Download complete!")
+                options = {
+                    'format': format_string,
+                    'outtmpl': os.path.join(output_path, '%(title)s - %(height)sp.%(ext)s'),
+                    'noplaylist': True,
+                    'merge_output_format': 'mp4',
+                }
 
-            # Provide download button
-            st.download_button(
-                label="Download Video",
-                data=open(filename, "rb"),
-                file_name=os.path.basename(filename),
-                mime="video/mp4"
-            )
+                with yt_dlp.YoutubeDL(options) as ydl:
+                    info_dict = ydl.extract_info(url, download=True)
+                    downloaded_file_path = ydl.prepare_filename(info_dict)
+                    
+                    # Ensure the final file has an mp4 extension for consistency
+                    if not downloaded_file_path.endswith('.mp4'):
+                        base, ext = os.path.splitext(downloaded_file_path)
+                        final_path = base + '.mp4'
+                        os.rename(downloaded_file_path, final_path)
+                        downloaded_file_path = final_path
 
-        except Exception as e:
-            st.error(f"❌ Error: {e}\nThis usually happens if the video is age-restricted or blocked.")
+                st.success("✅ Download complete!")
+
+                with open(downloaded_file_path, "rb") as file:
+                    st.download_button(
+                        label="⬇️ Click to Download Video",
+                        data=file,
+                        file_name=os.path.basename(downloaded_file_path),
+                        mime="video/mp4"
+                    )
+    except Exception as e:
+        st.error(f"❌ An error occurred: {e}")
