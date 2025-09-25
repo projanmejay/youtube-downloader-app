@@ -2,66 +2,38 @@ import streamlit as st
 import yt_dlp
 import os
 
-st.title("📥 YouTube Video Downloader (HD/4K)")
-st.write("Enter a YouTube link to download the video in the highest available quality.")
+# Set a title and description for the app
+st.title("📥 YouTube Video Downloader")
+st.write("Enter a YouTube link to download the video in the best available quality (1080p max).")
 
-# --- Functions ---
-def get_video_qualities(url):
-    """Fetches available video-only resolutions."""
-    ydl_opts = {'noplaylist': True}
-    qualities = set()
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            formats = info.get('formats', [])
-            for f in formats:
-                # Filter for video-only formats that have a height specified
-                if f.get('vcodec') != 'none' and f.get('acodec') == 'none' and f.get('height'):
-                    qualities.add(f"{f['height']}p")
-        
-        # Return a sorted list of unique qualities, highest first
-        return sorted(list(qualities), key=lambda q: int(q.replace('p', '')), reverse=True)
-    except Exception as e:
-        st.error(f"❌ An error occurred while fetching qualities: {e}")
-        return []
-
-# --- Streamlit App UI ---
+# Input field for the YouTube URL
 url = st.text_input("🎬 Enter YouTube URL:")
 
+# Create a variable to hold the FFmpeg path. Note: This path is specific to your local machine.
+# For a production app, you would need to have FFmpeg installed on the server and ensure it's in the PATH.
+ffmpeg_path = r'C:\Users\hp\Downloads\ffmpeg-2025-07-10-git-82aeee3c19-full_build\ffmpeg-2025-07-10-git-82aeee3c19-full_build\bin'
+
 if url:
-    try:
-        with st.spinner("Fetching available qualities..."):
-            qualities = get_video_qualities(url)
-
-        if not qualities:
-            st.warning("⚠️ No video-only formats found or an error occurred. Using best available single file.")
-            qualities = ["best"] 
-        
-        st.info("ℹ️ Higher qualities (1080p+) have no sound and will be merged with the best audio.")
-        selected_quality = st.selectbox("🎯 Select video quality:", qualities)
-
-        if st.button("Download Video"):
+    if st.button("Download Video"):
+        try:
             with st.spinner("Downloading and merging... this may take a moment."):
+                # The 'downloads' folder will be created in the directory where the app is run
                 output_path = "downloads"
                 os.makedirs(output_path, exist_ok=True)
                 
-                height = selected_quality.replace('p', '') if selected_quality != 'best' else 'best'
-                
-                # Use format string for merging video and audio
-                if height == 'best':
-                    format_string = 'best'
-                    # Use a different output template for 'best' to avoid a name clash
-                    output_template = os.path.join(output_path, '%(title)s.%(ext)s')
-                else:
-                    format_string = f'bestvideo[height={height}]+bestaudio/best'
-                    output_template = os.path.join(output_path, '%(title)s - %(height)sp.%(ext)s')
-
-                # Add User-Agent header to mimic a browser, which helps avoid 403 errors.
+                # Set up the yt-dlp options, including your FFmpeg path
                 options = {
-                    'format': format_string,
-                    'outtmpl': output_template,
+                    'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
+                    'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
                     'noplaylist': True,
+                    'quiet': False,
                     'merge_output_format': 'mp4',
+                    'ffmpeg_location': ffmpeg_path,
+                    'postprocessors': [{
+                        'key': 'FFmpegMetadata',
+                        'add_metadata': True,
+                    }],
+                    # Add a User-Agent header to mimic a browser, which helps avoid 403 errors
                     'http_headers': {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36'
                     }
@@ -69,8 +41,7 @@ if url:
 
                 with yt_dlp.YoutubeDL(options) as ydl:
                     info_dict = ydl.extract_info(url, download=True)
-                    # Use os.path.abspath to get the full path
-                    downloaded_file_path = os.path.abspath(ydl.prepare_filename(info_dict))
+                    downloaded_file_path = ydl.prepare_filename(info_dict)
                     
                     # Ensure the final file has an mp4 extension for consistency
                     if not downloaded_file_path.endswith('.mp4'):
@@ -79,15 +50,18 @@ if url:
                         os.rename(downloaded_file_path, final_path)
                         downloaded_file_path = final_path
 
-                st.success("✅ Download complete!")
+            st.success("✅ Download complete!")
+            st.write(f"File saved to: `{downloaded_file_path}`")
+            
+            # Create a download button for the user
+            with open(downloaded_file_path, "rb") as file:
+                st.download_button(
+                    label="⬇️ Click to Download Video",
+                    data=file,
+                    file_name=os.path.basename(downloaded_file_path),
+                    mime="video/mp4"
+                )
 
-                with open(downloaded_file_path, "rb") as file:
-                    st.download_button(
-                        label="⬇️ Click to Download Video",
-                        data=file,
-                        file_name=os.path.basename(downloaded_file_path),
-                        mime="video/mp4"
-                    )
-    except Exception as e:
-        st.error(f"❌ An error occurred: ERROR: unable to download video data: HTTP Error 403: Forbidden. \n\nThis is a known issue from YouTube's side. Your code is correct, but the request is being blocked.")
-        st.error(f"Details: {e}")
+        except Exception as e:
+            st.error(f"❌ An error occurred: {e}")
+            st.warning("Please ensure FFmpeg is correctly installed and its path is set.")
